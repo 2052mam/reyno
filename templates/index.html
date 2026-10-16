@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMD Lab | شبیه‌ساز تست قطعات SMD</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div id="app">
+    <canvas id="three-canvas"></canvas>
+
+    <header id="topBar">
+        <div class="brand">
+            <span class="brand-icon">🔧</span>
+            <h1>SMD<span class="accent">Lab</span></h1>
+        </div>
+
+        <div class="toolbar-actions">
+            <div class="side-group">
+                <span class="side-badge front-badge">روی برد</span>
+                <span id="frontStatus" class="status-text">—</span>
+                <button id="uploadFrontBtn" class="btn btn-primary">📤 بارگذاری</button>
+            </div>
+
+            <div class="side-group">
+                <span class="side-badge back-badge">پشت برد</span>
+                <span id="backStatus" class="status-text">—</span>
+                <button id="uploadBackBtn" class="btn btn-secondary">📤 بارگذاری</button>
+                <button id="removeBackBtn" class="btn-link hidden">حذف</button>
+            </div>
+
+            <label id="mirrorToggle" class="toggle-switch hidden">
+                <input type="checkbox" id="mirrorCheckbox" checked>
+                <span class="toggle-slider"></span>
+                <span class="toggle-label">آینه کردن پشت</span>
+            </label>
+
+            <button id="clearBtn" class="btn btn-ghost">🗑 پاک‌کردن همه</button>
+            <button id="resetViewBtn" class="btn btn-ghost">🎯 بازنشانی نما</button>
+        </div>
+
+        <input type="file" id="frontInput" accept=".png" hidden>
+        <input type="file" id="backInput" accept=".png" hidden>
+    </header>
+
+    <button id="flipBoardBtn" class="flip-btn glass-pill hidden">
+        <span class="flip-icon">🔄</span>
+        <span id="flipBtnText">نمایش پشت برد</span>
+    </button>
+
+    <div id="dropZone" class="glass-card">
+        <div class="drop-icon">📷</div>
+        <p class="drop-title">تصویر PNG روی برد را رها کنید</p>
+        <p class="drop-sub">یا کلیک کنید برای انتخاب فایل<br>(پیشنهاد: پس‌زمینه‌ شفاف برای حفظ دقیق شکل برد)<br>عکس پشت برد رو می‌تونی بعدا از نوار بالا اضافه کنی</p>
+    </div>
+
+    <div id="controlsHint" class="glass-pill">
+        🖱️ چرخش: دکمه چپ &nbsp;·&nbsp; جابجایی: دکمه راست &nbsp;·&nbsp; زوم: اسکرول موس
+    </div>
+
+    <div id="loadingOverlay" class="hidden">
+        <div class="spinner"></div>
+        <p>در حال تحلیل تصویر و ساخت مدل سه‌بعدی برد...</p>
+    </div>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+}
+</script>
+<script>
+    window.initialFrontImage = {{ front_image|tojson if front_image else 'null' }};
+    window.initialBackImage = {{ back_image|tojson if back_image else 'null' }};
+</script>
+<script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
