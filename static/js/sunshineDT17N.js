@@ -1022,6 +1022,11 @@ export class SunshineDT17N {
           return {text:'OL', unit:'V', isOL:true, beep:false, raw:0};
         }
         if (mode==='continuity'){
+          if (type==='capacitor'){
+            // Faulty capacitor in continuity = shorted → continuous beep, low resistance (user: continuous = faulty)
+            // Healthy capacitor momentary handled later; faulty must beep continuously until disconnect
+            return {text:'0.8', unit:'Ω', isOL:false, beep:true, raw:0.8};
+          }
           // faulty continuity: no beep, OL
           return {text:'OL', unit:'Ω', isOL:true, beep:false, raw:0};
         }
@@ -1232,8 +1237,9 @@ export class SunshineDT17N {
     else if (this.state.hold) this.state.heldValue=m;
     // CONTINUOUS beep handling — persists until probes disconnect / condition fails
     // For continuity mode with beep=true, start continuous tone; otherwise stop. Also handles inductor/diode/transistor continuity per spec continuously.
-    // beep handling: continuous for all except capacitor momentary (point 3)
-    const isCapMomentary = m.beep && this.currentComponent && this.currentComponent.type==='capacitor' && this.getCurrentDialMode().mode==='continuity';
+    // beep handling: continuous for all except HEALTHY capacitor momentary (user: healthy = momentary, faulty = continuous)
+    const measComp = (this._cableEnabled && this.getCableConnectedComponent && this.getCableConnectedComponent()) ? this.getCableConnectedComponent() : this.currentComponent;
+    const isCapMomentary = m.beep && measComp && measComp.type==='capacitor' && this.getCurrentDialMode().mode==='continuity' && !measComp.isFaulty;
     if (m.beep){
       if (isCapMomentary){
         // brief momentary beep only — single chirp, LED flash, no continuous oscillator

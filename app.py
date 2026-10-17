@@ -10,7 +10,7 @@ from datetime import datetime
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB for glb
-app.config['VERSION'] = '18'  # af — point1 reduce multimeter size (no scroll), point2 enlarge isolated 3D probe points, point3 capacitor momentary beep, point4 fix component click vs probe attach + dial radius 95
+app.config['VERSION'] = '19'  # ag — capacitor: healthy = momentary beep only, faulty = continuous beep (was inverted)
 ALLOWED_EXTENSIONS = {'png'}
 ALLOWED_MODEL_EXTENSIONS = {'glb', 'gltf'}
 
