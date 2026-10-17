@@ -10,7 +10,7 @@ from datetime import datetime
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB for glb
-app.config['VERSION'] = '19'  # ag — capacitor: healthy = momentary beep only, faulty = continuous beep (was inverted)
+app.config['VERSION'] = '20'  # ah — vendor three+vazirmatn locally (fix cdn.jsdelivr.net blocked => offline/iran deploy), add favicon route, local importmap
 ALLOWED_EXTENSIONS = {'png'}
 ALLOWED_MODEL_EXTENSIONS = {'glb', 'gltf'}
 
@@ -792,6 +792,14 @@ def _no_cache_js(response):
             response.headers['Cache-Control'] = 'no-cache, must-revalidate'
     except: pass
     return response
+
+@app.route('/favicon.ico')
+def favicon():
+    # serve local favicon; prevents 404 on browsers hitting /favicon.ico (critical for clean deploys)
+    try:
+        return app.send_static_file('favicon.ico')
+    except Exception:
+        return ('', 204)
 
 @app.route('/health')
 def health():

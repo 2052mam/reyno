@@ -2,7 +2,9 @@
    SMD Lab — Stellar Design System (2026)
    No glassmorphism. Solid, precise, lab-grade.
    ========================================================== */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap');
+/* JetBrains Mono — vendored locally (offline-safe, was Google Fonts CDN) */
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('../vendor/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2') format('woff2'), url('../vendor/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff') format('woff'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 700; font-display: swap; src: url('../vendor/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2') format('woff2'), url('../vendor/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff') format('woff'); }
 
 :root {
   /* Background & Surfaces — solid, layered */

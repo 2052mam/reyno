@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SMD Lab | شبیه‌ساز تست قطعات SMD</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/vazirmatn/Vazirmatn-font-face.css', v=config.get('VERSION', '20')) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=config.get('VERSION', '11')) }}">
+<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico', v=config.get('VERSION', '20')) }}">
 </head>
 <body>
 <div id="app">
@@ -736,8 +737,8 @@
 <script type="importmap">
 {
     "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        "three": "{{ url_for('static', filename='vendor/three/build/three.module.js') }}?v={{ config.get('VERSION','20') }}",
+        "three/addons/": "{{ url_for('static', filename='vendor/three/examples/jsm/') }}"
     }
 }
 </script>
