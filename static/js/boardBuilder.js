@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
-const BOARD_WIDTH = 4;          // عرض ثابت برد در واحد سه‌بعدی
-const THICKNESS = 0.12;         // ضخامت برد
-const MAX_PROCESS_SIZE = 500;   // حداکثر ابعاد عکس برای تحلیل آلفا (پرفورمنس)
-const ALPHA_THRESHOLD = 20;     // آستانه تشخیص شفافیت (0-255)
+export const BOARD_WIDTH = 4;          // عرض ثابت برد در واحد سه‌بعدی
+export const THICKNESS = 0.12;         // ضخامت برد
+export const MAX_PROCESS_SIZE = 500;   // حداکثر ابعاد عکس برای تحلیل آلفا (پرفورمنس)
+export const ALPHA_THRESHOLD = 20;     // آستانه تشخیص شفافیت (0-255)
 
 /**
  * عکس روی برد (و اختیاری پشت برد) رو میخونه، کانال آلفای روی برد رو تحلیل

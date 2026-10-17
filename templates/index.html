@@ -5,16 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SMD Lab | شبیه‌ساز تست قطعات SMD</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=config.get('VERSION', '11')) }}">
 </head>
 <body>
 <div id="app">
-    <canvas id="three-canvas"></canvas>
-
     <header id="topBar">
         <div class="brand">
             <span class="brand-icon">🔧</span>
             <h1>SMD<span class="accent">Lab</span></h1>
+            <span class="brand-sub">شبیه‌ساز برد</span>
         </div>
 
         <div class="toolbar-actions">
@@ -37,32 +36,700 @@
                 <span class="toggle-label">آینه کردن پشت</span>
             </label>
 
-            <button id="clearBtn" class="btn btn-ghost">🗑 پاک‌کردن همه</button>
-            <button id="resetViewBtn" class="btn btn-ghost">🎯 بازنشانی نما</button>
+            <div class="divider-v"></div>
+
+            <div id="modeSwitcher" class="mode-switcher hidden">
+                <button id="viewModeBtn" class="mode-btn active" data-mode="view">
+                    <span class="mode-icon">👁</span> نمایش
+                </button>
+                <button id="editModeBtn" class="mode-btn" data-mode="edit">
+                    <span class="mode-icon">✏️</span> ویرایش
+                </button>
+            </div>
+
+            <div class="theme-switcher">
+                <span class="theme-label">🎨</span>
+                <select id="themeSelect" class="theme-select" title="Theme">
+                    <option value="dark">Dark</option>
+                    <option value="light">Arctic Light</option>
+                    <option value="midnight">Midnight</option>
+                    <option value="neon">Neon</option>
+                </select>
+            </div>
+
+            <button id="clearBtn" class="btn btn-ghost">🗑 پاک‌کردن</button>
+            <button id="resetViewBtn" class="btn btn-ghost">🎯 نما</button>
         </div>
 
         <input type="file" id="frontInput" accept=".png" hidden>
         <input type="file" id="backInput" accept=".png" hidden>
     </header>
 
-    <button id="flipBoardBtn" class="flip-btn glass-pill hidden">
-        <span class="flip-icon">🔄</span>
-        <span id="flipBtnText">نمایش پشت برد</span>
-    </button>
+    <div id="mainLayout">
+        <div id="canvasWrap">
+            <canvas id="three-canvas"></canvas>
 
-    <div id="dropZone" class="glass-card">
-        <div class="drop-icon">📷</div>
-        <p class="drop-title">تصویر PNG روی برد را رها کنید</p>
-        <p class="drop-sub">یا کلیک کنید برای انتخاب فایل<br>(پیشنهاد: پس‌زمینه‌ شفاف برای حفظ دقیق شکل برد)<br>عکس پشت برد رو می‌تونی بعدا از نوار بالا اضافه کنی</p>
+            <button id="flipBoardBtn" class="flip-btn hidden">
+                <span class="flip-icon">🔄</span>
+                <span id="flipBtnText">نمایش پشت برد</span>
+            </button>
+
+            <div id="dropZone">
+                <div class="drop-icon">📷</div>
+                <p class="drop-title">تصویر PNG روی برد را رها کنید</p>
+                <p class="drop-sub">یا کلیک کنید برای انتخاب فایل<br>(پیشنهاد: پس‌زمینه‌ شفاف برای حفظ دقیق شکل برد)<br>عکس پشت برد رو می‌تونی بعدا از نوار بالا اضافه کنی</p>
+            </div>
+
+            <div id="controlsHint">
+                🖱️ چرخش: درگ چپ &nbsp;·&nbsp; جابجایی: درگ راست / Shift+درگ چپ &nbsp;·&nbsp; زوم: اسکرول (به‌سوی نشانگر) &nbsp;·&nbsp; کلیک روی قطعه
+            </div>
+
+            <div id="loadingOverlay" class="hidden">
+                <div class="spinner"></div>
+                <p>در حال تحلیل تصویر و ساخت مدل سه‌بعدی برد...</p>
+            </div>
+            <div id="focusView" class="focus-view hidden">
+                <div class="focus-view-header">
+                    <button id="focusBackBtn" class="btn btn-ghost btn-sm">↩ بازگشت به برد</button>
+                    <span id="focusTitle" class="focus-title"></span>
+                    <span class="focus-hint">درگ چرخش · اسکرول زوم</span>
+                </div>
+                <div class="focus-view-info" id="focusInfo"></div>
+            </div>
+        </div>
+
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <h3>🔍 فیلتر & جزئیات</h3>
+                <button id="sidebarCollapseBtn" class="sidebar-collapse-btn" title="بستن سایدبار">‹</button>
+            </div>
+            <div class="sidebar-content">
+                <div class="outer-accordion">
+                    <!-- Filters outer accordion — closed by default -->
+                    <div class="outer-item" id="outerFilterWrap">
+                        <button class="outer-header" type="button" aria-expanded="false">
+                            <span class="outer-title">🔍 فیلتر نمایش</span>
+                            <span class="outer-count" id="outerFilterCount">0</span>
+                            <span class="outer-chevron">⌄</span>
+                        </button>
+                        <div class="outer-body" style="max-height:0;opacity:0">
+                            <span id="sidebarFilterHint" class="sidebar-hint">یک دسته را باز کنید تا چشمک بزند ✨</span>
+                            <div id="filterAccordion" class="filter-accordion">
+                        <!-- ALL -->
+                        <div class="accordion-item expanded active" data-type="all">
+                            <button class="accordion-header" data-type="all">
+                                <span class="acc-icon" style="background:var(--text-1); color:var(--bg);">◉</span>
+                                <div class="acc-text">
+                                    <span class="acc-title">همه</span>
+                                    <span class="acc-en">All</span>
+                                </div>
+                                <span class="pill-count acc-count" id="acc-count-all">0</span>
+                                <span class="pill-count hidden" id="sidebar-count-all">0</span>
+                                <span class="acc-chevron">⌄</span>
+                            </button>
+                            <div class="accordion-body" style="max-height:120px">
+                                <p class="acc-desc">نمایش همه قطعات بدون فیلتر — برای تمرکز، یک دسته را انتخاب کنید.</p>
+                                <div class="acc-meta">
+                                    <span class="acc-meta-item">رو <b id="acc-front-all">0</b></span>
+                                    <span class="acc-meta-dot">·</span>
+                                    <span class="acc-meta-item">پشت <b id="acc-back-all">0</b></span>
+                                    <span class="acc-meta-dot">·</span>
+                                    <span class="acc-meta-item total"><b id="acc-total-all">0</b> کل</span>
+                                </div>
+                                <div class="acc-list hidden" id="acc-list-all"></div>
+                            </div>
+                        </div>
+                        <!-- Resistor -->
+                        <div class="accordion-item" data-type="resistor">
+                            <button class="accordion-header" data-type="resistor">
+                                <span class="dot dot-resistor acc-icon"></span>
+                                <div class="acc-text">
+                                    <span class="acc-title">مقاومت</span>
+                                    <span class="acc-en">Resistor</span>
+                                </div>
+                                <span class="pill-count acc-count" id="acc-count-resistor">0</span>
+                                <span class="pill-count hidden" id="sidebar-count-resistor">0</span>
+                                <span class="acc-chevron">⌄</span>
+                            </button>
+                            <div class="accordion-body">
+                                <p class="acc-desc">کنترل جریان — هر مقاومت چشمک سبز خواهد زد.</p>
+                                <div class="acc-meta">
+                                    <span class="acc-meta-item">رو <b id="acc-front-resistor">0</b></span>
+                                    <span class="acc-meta-dot">·</span>
+                                    <span class="acc-meta-item">پشت <b id="acc-back-resistor">0</b></span>
+                                    <button class="btn btn-ghost btn-sm acc-flash-btn">چشمک همه ✨</button>
+                                </div>
+                                <div class="acc-list hidden" id="acc-list-resistor"></div>
+                            </div>
+                        </div>
+                        <!-- Capacitor -->
+                        <div class="accordion-item" data-type="capacitor">
+                            <button class="accordion-header" data-type="capacitor">
+                                <span class="dot dot-capacitor acc-icon"></span>
+                                <div class="acc-text">
+                                    <span class="acc-title">خازن</span>
+                                    <span class="acc-en">Capacitor</span>
+                                </div>
+                                <span class="pill-count acc-count" id="acc-count-capacitor">0</span>
+                                <span class="pill-count hidden" id="sidebar-count-capacitor">0</span>
+                                <span class="acc-chevron">⌄</span>
+                            </button>
+                            <div class="accordion-body">
+                                <p class="acc-desc">ذخیره انرژی — خازن‌ها را هم‌زمان بیابید.</p>
+                                <div class="acc-meta">
+                                    <span class="acc-meta-item">رو <b id="acc-front-capacitor">0</b></span>
+                                    <span class="acc-meta-dot">·</span>
+                                    <span class="acc-meta-item">پشت <b id="acc-back-capacitor">0</b></span>
+                                    <button class="btn btn-ghost btn-sm acc-flash-btn">چشمک همه ✨</button>
+                                </div>
+                                <div class="acc-list hidden" id="acc-list-capacitor"></div>
+                            </div>
+                        </div>
+                        <!-- Inductor -->
+                        <div class="accordion-item" data-type="inductor">
+                            <button class="accordion-header" data-type="inductor">
+                                <span class="dot dot-inductor acc-icon"></span>
+                                <div class="acc-text">
+                                    <span class="acc-title">سلف</span>
+                                    <span class="acc-en">Inductor</span>
+                                </div>
+                                <span class="pill-count acc-count" id="acc-count-inductor">0</span>
+                                <span class="pill-count hidden" id="sidebar-count-inductor">0</span>
+                                <span class="acc-chevron">⌄</span>
+                            </button>
+                            <div class="accordion-body">
+                                <p class="acc-desc">سلف‌ها — فیلتر و ذخیره میدان.</p>
+                                <div class="acc-meta">
+                                    <span class="acc-meta-item">رو <b id="acc-front-inductor">0</b></span>
+                                    <span class="acc-meta-dot">·</span>
+                                    <span class="acc-meta-item">پشت <b id="acc-back-inductor">0</b></span>
+                                    <button class="btn btn-ghost btn-sm acc-flash-btn">چشمک همه ✨</button>
+                                </div>
+                                <div class="acc-list hidden" id="acc-list-inductor"></div>
+                            </div>
+                        </div>
+                        <!-- Diode -->
+                        <div class="accordion-item" data-type="diode">
+                            <button class="accordion-header" data-type="diode">
+                                <span class="dot dot-diode acc-icon"></span>
+                                <div class="acc-text">
+                                    <span class="acc-title">دیود</span>
+                                    <span class="acc-en">Diode</span>
+                                </div>
+                                <span class="pill-count acc-count" id="acc-count-diode">0</span>
+                                <span class="pill-count hidden" id="sidebar-count-diode">0</span>
+                                <span class="acc-chevron">⌄</span>
+                            </button>
+                            <div class="accordion-body">
+                                <p class="acc-desc">عبور یک‌طرفه — دیودها را برجسته کنید.</p>
+                                <div class="acc-meta">
+                                    <span class="acc-meta-item">رو <b id="acc-front-diode">0</b></span>
+                                    <span class="acc-meta-dot">·</span>
+                                    <span class="acc-meta-item">پشت <b id="acc-back-diode">0</b></span>
+                                    <button class="btn btn-ghost btn-sm acc-flash-btn">چشمک همه ✨</button>
+                                </div>
+                                <div class="acc-list hidden" id="acc-list-diode"></div>
+                            </div>
+                        </div>
+                        <!-- Transistor -->
+                        <div class="accordion-item" data-type="transistor">
+                            <button class="accordion-header" data-type="transistor">
+                                <span class="dot dot-transistor acc-icon"></span>
+                                <div class="acc-text">
+                                    <span class="acc-title">ترانزیستور</span>
+                                    <span class="acc-en">Transistor</span>
+                                </div>
+                                <span class="pill-count acc-count" id="acc-count-transistor">0</span>
+                                <span class="pill-count hidden" id="sidebar-count-transistor">0</span>
+                                <span class="acc-chevron">⌄</span>
+                            </button>
+                            <div class="accordion-body">
+                                <p class="acc-desc">سوئیچ و تقویت — ترانزیستورها چشمک می‌زنند.</p>
+                                <div class="acc-meta">
+                                    <span class="acc-meta-item">رو <b id="acc-front-transistor">0</b></span>
+                                    <span class="acc-meta-dot">·</span>
+                                    <span class="acc-meta-item">پشت <b id="acc-back-transistor">0</b></span>
+                                    <button class="btn btn-ghost btn-sm acc-flash-btn">چشمک همه ✨</button>
+                                </div>
+                                <div class="acc-list hidden" id="acc-list-transistor"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Hidden legacy pills for compatibility (no UI) -->
+                    <div id="sidebarFilterPills" class="hidden">
+                        <button class="filter-pill active" data-type="all">همه</button>
+                        <button class="filter-pill" data-type="resistor">مقاومت</button>
+                        <button class="filter-pill" data-type="capacitor">خازن</button>
+                        <button class="filter-pill" data-type="inductor">سلف</button>
+                        <button class="filter-pill" data-type="diode">دیود</button>
+                        <button class="filter-pill" data-type="transistor">ترانزیستور</button>
+                    </div>
+                        </div>
+                    </div>
+                    <!-- Details outer accordion — independent, collapsible -->
+                    <div class="outer-item expanded" id="outerDetailWrap">
+                        <button class="outer-header" type="button" aria-expanded="true">
+                            <span class="outer-title">📋 جزئیات قطعه انتخاب‌شده</span>
+                            <span class="outer-chevron">⌄</span>
+                        </button>
+                        <div class="outer-body">
+                            <div id="sidebarDetailSection" class="hidden">
+                                <div id="sidebarDetailContent" class="sidebar-detail-content"></div>
+                                <button id="view3DModelBtn" class="btn btn-primary btn-sm" style="width:100%; margin-top:10px;">🧊 View 3D Model</button>
+                                <button id="sidebarEditBtn" class="btn btn-ghost btn-sm" style="width:100%; margin-top:8px;">✏️ ویرایش در حالت 2D</button>
+                            </div>
+                            <div id="sidebarEmpty" class="sidebar-empty">
+                                <div class="empty-icon">👆</div>
+                                <p>قطعه‌ای انتخاب نشده</p>
+                                <span>روی برد کلیک کنید یا از فیلتر استفاده کنید — دوبار کلیک = نمایش سه‌بعدی</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Theme outer -->
+                    <div class="outer-item" id="outerModelWrap">
+                        <button class="outer-header" type="button" aria-expanded="false">
+                            <span class="outer-title">🎨 Theme</span>
+                            <span class="outer-chevron">⌄</span>
+                        </button>
+                        <div class="outer-body" style="max-height:0;opacity:0">
+                            <div class="theme-customize">
+                                <div class="sidebar-title">Theme — overall & per-component</div>
+                                <div class="theme-row" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px">
+                                    <label style="font-size:11px;color:var(--text-2)">Overall</label>
+                                    <button class="btn btn-ghost btn-sm theme-preset-btn" data-theme="dark">Dark</button>
+                                    <button class="btn btn-ghost btn-sm theme-preset-btn" data-theme="light">Light</button>
+                                    <button class="btn btn-ghost btn-sm theme-preset-btn" data-theme="midnight">Midnight</button>
+                                    <button class="btn btn-ghost btn-sm theme-preset-btn" data-theme="neon">Neon</button>
+                                </div>
+                                <p class="hint" style="font-size:11px;color:var(--text-3)">Per-component color: edit a component → pick color. It tints its marker & 3D model.</p>
+                            </div>
+                            <!-- Keep hidden legacy board/model elements for JS compatibility (not shown) -->
+                            <div class="hidden">
+                                <select id="boardSelect"></select>
+                                <button id="newBoardBtn"></button>
+                                <button id="cloneBoardBtn"></button>
+                                <button id="deleteBoardBtn"></button>
+                                <input type="file" id="modelUploadInput" hidden>
+                                <button id="modelUploadBtn"></button>
+                                <select id="modelTypeSelect"><option value="resistor">Resistor</option></select>
+                                <input id="modelNameInput" hidden><textarea id="modelDescInput" hidden></textarea><div id="modelList" class="hidden"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Sunshine DT-17N 2D Bright — always visible for design review -->
+                <div id="multimeterSection">
+                    <div class="multimeter-card">
+                        <div class="multimeter-header">
+                            <div class="multimeter-title">
+                                <span class="multimeter-icon">🔬</span>
+                                <div>
+                                    <span class="multimeter-name">SUNSHINE DT-17N</span>
+                                    <span class="multimeter-sub">AUTO DIGITAL MULTIMETER · TRUE RMS</span>
+                                </div>
+                            </div>
+                            <div class="multimeter-header-actions">
+                                <span id="multimeterStatusDot" class="multimeter-status-dot"></span>
+                                <button id="multimeterExpandBtn" class="multimeter-expand-btn" title="گسترش">⛶</button>
+                            </div>
+                        </div>
+
+                        <div id="multimeterWrap" class="multimeter-wrap dmm2d-wrap-host">
+                            <canvas id="multimeterCanvas" style="display:none"></canvas>
+                            <!-- Static 2D bright fallback — visible instantly even before JS module loads -->
+                            <div class="dmm2d" id="dmm2dStatic">
+                              <div class="dmm2d-holster">
+                                <div class="dmm2d-holster-gloss"></div>
+                                <div class="dmm2d-body">
+                                  <div class="dmm2d-header">
+                                    <div class="dmm2d-brand-left"><span class="dmm2d-brand">SUNSHINE</span><span class="dmm2d-model">DT-17N</span><span class="dmm2d-badge">PRO</span></div>
+                                    <div class="dmm2d-brand-right"><span class="dmm2d-digital">DIGITAL</span><span class="dmm2d-multimeter">MULTIMETER</span></div>
+                                  </div>
+                                  <div class="dmm2d-lcd-block">
+                                    <div class="dmm2d-lcd-frame">
+                                      <div class="dmm2d-lcd" id="dmm2dLcd">
+                                        <div class="dmm2d-lcd-top"><span class="dmm2d-lcd-icon on" data-icon="apo">APO</span><span class="dmm2d-lcd-icon on" data-icon="auto">AUTO</span><span class="dmm2d-lcd-icon on" data-icon="rms">TRUE RMS</span><span class="dmm2d-lcd-icon hl" data-icon="hold">HOLD</span><span class="dmm2d-lcd-icon hl" data-icon="rel">Δ</span><span class="dmm2d-lcd-icon hl" data-icon="max">MAX</span><span class="dmm2d-lcd-icon hl" data-icon="min">MIN</span><span class="dmm2d-lcd-icon hl on" data-icon="hz">Hz</span><span class="dmm2d-lcd-icon" data-icon="cont">•)))</span><span class="dmm2d-lcd-icon" data-icon="diode">⊣</span><span class="dmm2d-lcd-icon" data-icon="cap">-||-</span><span class="dmm2d-lcd-icon hl batt" data-icon="batt">🔋</span></div>
+                                        <div class="dmm2d-lcd-mid"><span class="dmm2d-lcd-value" id="dmm2dValue">10.00</span><span class="dmm2d-lcd-unit" id="dmm2dUnit">kΩ</span></div>
+                                        <div class="dmm2d-lcd-bottom"><span id="dmm2dRange">AUTO RANGE</span><span class="dmm2d-lcd-barcode">▮▮▮▮▮▮▮▮▯▯▯▯</span></div>
+                                        <div class="dmm2d-lcd-reflection"></div>
+                                      </div>
+                                    </div>
+                                    <div class="dmm2d-lcd-hint"><span class="dmm2d-led" id="dmm2dLed"></span> 5999 Counts · 3/s · NCV</div>
+                                  </div>
+                                  <div class="dmm2d-buttons">
+                                    <button class="dmm2d-btn" data-btn="hold"><span>HOLD</span><small>☀ long</small></button>
+                                    <button class="dmm2d-btn" data-btn="range"><span>RANGE</span></button>
+                                    <button class="dmm2d-btn" data-btn="rela"><span>REL</span><small>Δ</small></button>
+                                    <button class="dmm2d-btn" data-btn="hz"><span>Hz %</span></button>
+                                    <button class="dmm2d-btn orange" data-btn="select"><span>SELECT</span></button>
+                                    <button class="dmm2d-btn" data-btn="maxmin"><span>MAX/MIN</span></button>
+                                  </div>
+                                  <div class="dmm2d-dial-area">
+                                    <div class="dmm2d-dial-ring" style="cursor:grab">
+                                      <div class="dmm2d-dial-inner"></div>
+                                      <div class="dmm2d-dial-labels">
+                                        <button class="dmm2d-dial-label off" data-idx="0" style="--x:-47.50px;--y:82.27px;" title="OFF"><span class="dmm2d-dial-t">OFF</span><span class="dmm2d-dial-tick"></span></button>
+<button class="dmm2d-dial-label" data-idx="1" style="--x:-82.27px;--y:47.50px;" title="V~"><span class="dmm2d-dial-t">V~</span><span class="dmm2d-dial-tick"></span></button>
+<button class="dmm2d-dial-label" data-idx="2" style="--x:-95.00px;--y:-0.00px;" title="V⎓"><span class="dmm2d-dial-t">V⎓</span><span class="dmm2d-dial-tick"></span></button>
+<button class="dmm2d-dial-label" data-idx="3" style="--x:-82.27px;--y:-47.50px;" title="mV⎓"><span class="dmm2d-dial-t">mV⎓</span><span class="dmm2d-dial-tick"></span></button>
+<button class="dmm2d-dial-label selected" data-idx="4" style="--x:-47.50px;--y:-82.27px;" title="Ω"><span class="dmm2d-dial-t">Ω</span><span class="dmm2d-dial-sub">→ •))) &nbsp;-| |- &nbsp; ⊣</span><span class="dmm2d-dial-tick"></span></button>
+<button class="dmm2d-dial-label" data-idx="5" style="--x:0.00px;--y:-95.00px;" title="Hz%"><span class="dmm2d-dial-t">Hz%</span><span class="dmm2d-dial-tick"></span></button>
+<button class="dmm2d-dial-label" data-idx="6" style="--x:47.50px;--y:-82.27px;" title="A⎓"><span class="dmm2d-dial-t">A⎓</span><span class="dmm2d-dial-tick"></span></button>
+<button class="dmm2d-dial-label" data-idx="7" style="--x:83.88px;--y:-44.60px;" title="mA⎓"><span class="dmm2d-dial-t">mA⎓</span><span class="dmm2d-dial-tick"></span></button>
+<button class="dmm2d-dial-label" data-idx="8" style="--x:94.95px;--y:3.32px;" title="µA⎓"><span class="dmm2d-dial-t">µA⎓</span><span class="dmm2d-dial-tick"></span></button>
+<button class="dmm2d-dial-label" data-idx="9" style="--x:78.76px;--y:53.13px;" title="°C°F"><span class="dmm2d-dial-t">°C°F</span><span class="dmm2d-dial-tick"></span></button>
+<button class="dmm2d-dial-label" data-idx="10" style="--x:44.60px;--y:83.88px;" title="NCV"><span class="dmm2d-dial-t">NCV</span><span class="dmm2d-dial-sub">VoltAlert</span><span class="dmm2d-dial-tick"></span></button>
+
+                                      </div>
+                                      <div class="dmm2d-knob" id="dmm2dKnob" style="transform:rotate(-30deg)">
+                                        <div class="dmm2d-knob-body"><div class="dmm2d-knob-grip"></div><div class="dmm2d-knob-cap"><div class="dmm2d-pointer-wrap"><div class="dmm2d-pointer"></div><div class="dmm2d-pointer-tip"></div></div><div class="dmm2d-screw"><span></span><span></span></div></div></div>
+                                      </div>
+                                    </div>
+                                    <div class="dmm2d-dial-footer"><span class="dmm2d-pwr">AUTO POWER OFF</span><span class="dmm2d-rms-badge">TRUE RMS</span><span class="dmm2d-ce">CE</span><span class="dmm2d-warning-tri">⚠</span></div>
+                                  </div>
+                                  <div class="dmm2d-jacks">
+                                    <button class="dmm2d-jack" data-jack="10a"><span class="dmm2d-jack-hole"></span><span class="dmm2d-jack-label">10A</span><span class="dmm2d-jack-sub">10A MAX<br>FUSED</span></button>
+                                    <button class="dmm2d-jack" data-jack="maua"><span class="dmm2d-jack-hole"></span><span class="dmm2d-jack-label">mA µA</span><span class="dmm2d-jack-sub">600mA<br>FUSED</span></button>
+                                    <button class="dmm2d-jack com" data-jack="com"><span class="dmm2d-jack-hole"></span><span class="dmm2d-jack-label">COM</span><span class="dmm2d-jack-sub">COMMON</span></button>
+                                    <button class="dmm2d-jack" data-jack="vohm"><span class="dmm2d-jack-hole"></span><span class="dmm2d-jack-label">VΩHz</span><span class="dmm2d-jack-sub">1000V ⎓<br>750V ~</span></button>
+                                  </div>
+                                  <div class="dmm2d-probe-wires">
+                                    <div class="dmm2d-probe" data-wire="10a"><div class="dmm2d-wire-line"></div><div class="dmm2d-probe-handle"><span></span></div></div>
+                                    <div class="dmm2d-probe" data-wire="maua"><div class="dmm2d-wire-line"></div><div class="dmm2d-probe-handle"><span></span></div></div>
+                                    <div class="dmm2d-probe" data-wire="com"><div class="dmm2d-wire-line"></div><div class="dmm2d-probe-handle"><span></span></div></div>
+                                    <div class="dmm2d-probe" data-wire="vohm"><div class="dmm2d-wire-line"></div><div class="dmm2d-probe-handle"><span></span></div></div>
+                                  </div>
+                                  <div class="dmm2d-cat">CAT III 1000V &nbsp; CAT IV 600V &nbsp; <span style="opacity:0.7">IEC 61010</span></div>
+                                </div>
+                                <div class="dmm2d-stand"></div>
+                              </div>
+                            </div>
+                            <div class="multimeter-overlay-hint">درگ برای چرخش · کلیک روی کلید / ولوم</div>
+                            <div id="multimeterJackHint" class="multimeter-jack-hint hidden">⚠️ LEAd — Check probe jacks</div>
+                        </div>
+                        <div class="multimeter-display-bar">
+                            <div id="multimeterLcd" class="multimeter-lcd">
+                                <span id="multimeterLcdValue" class="multimeter-lcd-value">---</span>
+                                <span id="multimeterLcdUnit" class="multimeter-lcd-unit"></span>
+                                <div class="multimeter-lcd-icons">
+                                    <span id="mIconHold" class="lcd-icon hidden">HOLD</span>
+                                    <span id="mIconRel" class="lcd-icon hidden">Δ</span>
+                                    <span id="mIconMax" class="lcd-icon hidden">MAX</span>
+                                    <span id="mIconAuto" class="lcd-icon">AUTO</span>
+                                    <span id="mIconTrueRms" class="lcd-icon">TRUE RMS</span>
+                                </div>
+                            </div>
+                            <div class="multimeter-probe-status">
+                                <span class="probe-dot probe-red"></span> <span id="probeJackLabel">COM + VΩHz</span>
+                                <span id="multimeterContinuityLed" class="continuity-led"></span>
+                            </div>
+                        </div>
+                        <div id="multimeterInfo" class="multimeter-info">
+                            <span id="multimeterModeLabel" style="font-weight:900;font-size:13px;letter-spacing:0.04em;color:#E6F0FF;background:rgba(77,208,255,0.16);border:1px solid rgba(77,208,255,0.35);padding:4px 8px;border-radius:999px">—</span>
+                            <span id="multimeterComponentLabel" class="multimeter-comp-label"></span>
+                        </div>
+                        <div id="multimeterDialHint" style="margin-top:6px;font-size:11px;color:#9AA8C2;text-align:center;letter-spacing:0.02em">⟲ Dial: click Ω then press <b style="color:#FF3B30">SELECT</b> → cycles <span style="color:#FF3B30">•))) CONT</span> / ⊣ / -||- / Ω — selected lights blue</div>
+                        <div class="multimeter-legend">
+                            <span>💡 Backlight: long-press HOLD</span>
+                            <span>🔊 Continuity beep</span>
+                            <span>🌡 Temp 0→1000°C</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="sidebar-stats">
+                    <span id="sidebarStats">0 قطعه</span>
+                    <span class="sidebar-stats-dim">در کل برد</span>
+                </div>
+            </div>
+        </aside>
     </div>
 
-    <div id="controlsHint" class="glass-pill">
-        🖱️ چرخش: دکمه چپ &nbsp;·&nbsp; جابجایی: دکمه راست &nbsp;·&nbsp; زوم: اسکرول موس
+    <button id="sidebarToggleBtn" class="sidebar-toggle-btn hidden" title="نمایش سایدبار">☰ فیلتر</button>
+
+    <!-- Legacy filter bar kept hidden for compatibility -->
+    <div id="viewFilterBar" class="hidden">
+        <span class="filter-label">🔍 فیلتر قطعات:</span>
+        <div id="filterPills" class="filter-pills">
+            <button class="filter-pill active" data-type="all">همه <span class="pill-count" id="count-all">0</span></button>
+            <button class="filter-pill" data-type="resistor"><span class="dot dot-resistor"></span> مقاومت <span class="pill-count" id="count-resistor">0</span></button>
+            <button class="filter-pill" data-type="capacitor"><span class="dot dot-capacitor"></span> خازن <span class="pill-count" id="count-capacitor">0</span></button>
+            <button class="filter-pill" data-type="inductor"><span class="dot dot-inductor"></span> سلف <span class="pill-count" id="count-inductor">0</span></button>
+            <button class="filter-pill" data-type="diode"><span class="dot dot-diode"></span> دیود <span class="pill-count" id="count-diode">0</span></button>
+            <button class="filter-pill" data-type="transistor"><span class="dot dot-transistor"></span> ترانزیستور <span class="pill-count" id="count-transistor">0</span></button>
+        </div>
+        <span class="filter-hint" id="filterHint">برای چشمک‌زدن انتخاب کنید</span>
     </div>
 
-    <div id="loadingOverlay" class="hidden">
-        <div class="spinner"></div>
-        <p>در حال تحلیل تصویر و ساخت مدل سه‌بعدی برد...</p>
+    <!-- Edit overlay (2D) -->
+    <div id="editOverlay" class="hidden">
+        <div class="edit-backdrop"></div>
+        <div id="editPanel">
+            <div class="edit-header">
+                <div class="edit-header-title">
+                    <h2>✏️ ویرایش ناحیه‌های قطعات</h2>
+                    <p>نوع قطعه را انتخاب کرده، سپس روی برد مستطیل بکشید. می‌توانید برد را بچرخانید تا پشت آن را نیز مشخص کنید.</p>
+                </div>
+                <div class="edit-header-actions">
+                    <button id="editFlipBtn" class="btn btn-ghost hidden">
+                        <span id="editFlipText">نمایش پشت برد</span> 🔄
+                    </button>
+                    <button id="saveEditBtn" class="btn btn-primary">💾 ذخیره و خروج</button>
+                    <button id="cancelEditBtn" class="btn btn-ghost">✕ انصراف</button>
+                </div>
+            </div>
+
+            <div id="componentPalette" class="palette">
+                <button class="palette-btn" data-type="resistor">
+                    <span class="palette-icon" style="background:#ff9f43"></span>
+                    <span class="palette-label">مقاومت</span>
+                    <span class="palette-en">Resistor</span>
+                </button>
+                <button class="palette-btn" data-type="capacitor">
+                    <span class="palette-icon" style="background:#4dd0ff"></span>
+                    <span class="palette-label">خازن</span>
+                    <span class="palette-en">Capacitor</span>
+                </button>
+                <button class="palette-btn" data-type="inductor">
+                    <span class="palette-icon" style="background:#a55eea"></span>
+                    <span class="palette-label">سلف</span>
+                    <span class="palette-en">Inductor</span>
+                </button>
+                <button class="palette-btn" data-type="diode">
+                    <span class="palette-icon" style="background:#ff5e57"></span>
+                    <span class="palette-label">دیود</span>
+                    <span class="palette-en">Diode</span>
+                </button>
+                <button class="palette-btn" data-type="transistor">
+                    <span class="palette-icon" style="background:#0be881"></span>
+                    <span class="palette-label">ترانزیستور</span>
+                    <span class="palette-en">Transistor</span>
+                </button>
+            </div>
+
+            <!-- Workspace: sidebar controls + viewport — responsive grid -->
+            <div id="editWorkspace" class="edit-workspace">
+                <aside id="editSidebar" class="edit-sidebar">
+                    <div class="edit-board-section">
+                        <div class="edit-section-title">📋 برد فعال — انتخاب برد برای ویرایش</div>
+                        <div class="board-actions" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
+                            <select id="editBoardSelect" class="detail-input" style="flex:1;min-width:140px"></select>
+                            <button id="editNewBoardBtn" class="btn btn-ghost btn-sm">+ برد جدید</button>
+                            <button id="editCloneBoardBtn" class="btn btn-ghost btn-sm">⎘ تکثیر</button>
+                            <button id="editDeleteBoardBtn" class="btn btn-ghost btn-sm">🗑 حذف</button>
+                        </div>
+                        <span class="hint" style="font-size:11px;color:var(--text-3);display:block;margin-top:6px">مستطیل‌هایی که روی برد می‌کشید متعلق به برد انتخاب‌شده خواهند بود.</span>
+                    </div>
+                    <div class="edit-model-section">
+                        <div class="edit-section-title">🧊 کتابخانه مدل سه‌بعدی — ویژه همین برد</div>
+                        <div class="model-upload-area" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
+                            <input type="file" id="editModelUploadInput" accept=".glb,.gltf" hidden>
+                            <button id="editModelUploadBtn" class="btn btn-primary btn-sm">📤 بارگذاری .glb</button>
+                            <select id="editModelTypeSelect" class="detail-input" style="flex:1;min-width:130px">
+                                <option value="resistor">مقاومت</option>
+                                <option value="capacitor">خازن</option>
+                                <option value="inductor">سلف</option>
+                                <option value="diode">دیود</option>
+                                <option value="transistor">ترانزیستور</option>
+                            </select>
+                        </div>
+                        <input id="editModelNameInput" class="detail-input" placeholder="نام مدل (مثلا: مقاومت 0402 — 10k) — اختیاری" style="margin-top:6px">
+                        <textarea id="editModelDescInput" class="detail-input detail-textarea" placeholder="توضیحات / لینک دیتاشیت (اختیاری)" rows="2" style="margin-top:6px"></textarea>
+                        <div id="editModelList" class="model-list" style="margin-top:8px"></div>
+                        <span class="hint" style="font-size:11px;color:var(--text-3);display:block;margin-top:6px">فایل‌های .glb مخصوص همین برد را اینجا بارگذاری کنید — سپس یک ناحیه را انتخاب و از پنل جزئیات زیر استفاده کنید.</span>
+                    </div>
+                    <div id="detailPanel" class="detail-panel hidden">
+                    <div class="detail-header">
+                        <h3>📝 جزئیات قطعه انتخاب‌شده</h3>
+                        <button id="closeDetailBtn" class="btn btn-ghost btn-sm">✕</button>
+                    </div>
+                    <div class="detail-body">
+                        <label class="detail-label">نوع قطعه
+                            <select id="detailType" class="detail-input">
+                                <option value="resistor">مقاومت — Resistor</option>
+                                <option value="capacitor">خازن — Capacitor</option>
+                                <option value="inductor">سلف — Inductor</option>
+                                <option value="diode">دیود — Diode</option>
+                                <option value="transistor">ترانزیستور — Transistor</option>
+                            </select>
+                        </label>
+                        <label class="detail-label">نام قطعه
+                            <input id="detailName" class="detail-input" type="text" placeholder="مثلا: R12، C5، U1" maxlength="120">
+                        </label>
+                        <label class="detail-label">مقدار / Value
+                            <input id="detailValue" class="detail-input" type="text" placeholder="مثلا: 10kΩ، 100nF، 2N3904" maxlength="120">
+                        </label>
+                        <label class="detail-label">توضیحات
+                            <textarea id="detailDesc" class="detail-input detail-textarea" placeholder="توضیحات، نکات تست، ولتاژ و..." maxlength="800" rows="3"></textarea>
+                        </label>
+                        <div class="detail-model-section" style="border-top:1px solid var(--border);padding-top:10px;margin-top:8px">
+                            <label class="detail-label">مدل سه‌بعدی — اتصال یا بارگذاری
+                                <select id="detailModelSelect" class="detail-input">
+                                    <option value="">— دستی (بدون مدل) —</option>
+                                </select>
+                            </label>
+                            <div style="display:flex;gap:6px;margin-top:6px">
+                                <input type="file" id="detailModelInput" accept=".glb,.gltf" hidden>
+                                <button id="detailModelUploadBtn" class="btn btn-ghost btn-sm">📤 بارگذاری .glb برای این قطعه</button>
+                                <button id="detailModelClearBtn" class="btn btn-ghost btn-sm hidden">✕ حذف مدل</button>
+                            </div>
+                            <span id="detailModelHint" style="font-size:11px;color:var(--text-3);display:block;margin-top:4px"></span>
+                            <button id="detailView3DBtn" class="btn btn-primary btn-sm hidden" style="width:100%;margin-top:6px">🧊 نمایش روی برد سه‌بعدی</button>
+                        </div>
+                        <!-- Attachment points — prop cable registry -->
+                        <div class="detail-attachment-section" style="border-top:1px solid var(--border);padding-top:10px;margin-top:8px">
+                            <label class="detail-label">نقاط اتصال پراب — Attachment Points <span style="font-weight:600;opacity:0.7;font-size:10px;letter-spacing:0.04em">(برای تست با کابل)</span>
+                                <div id="attachmentPointsList" class="ap-list"></div>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center">
+                                    <button id="addAttachmentPointBtn" class="btn btn-ghost btn-sm" type="button">＋ افزودن نقطه</button>
+                                    <button id="resetAttachmentPointsBtn" class="btn btn-ghost btn-sm" type="button">↺ پیش‌فرض</button>
+                                    <span id="apHint" class="hint" style="font-size:11px">روی مستطیل کلیک کنید تا نقطه اضافه شود</span>
+                                </div>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center">
+                                    <button id="apHorizontalBtn" class="btn btn-ghost btn-sm" type="button" title="دو نقطه افقی (چپ-راست) برای قطعه افقی">↔ افقی</button>
+                                    <button id="apVerticalBtn" class="btn btn-ghost btn-sm" type="button" title="دو نقطه عمودی (بالا-پایین) برای قطعه عمودی">↕ عمودی</button>
+                                    <span class="hint" style="font-size:11px">جهت پیش‌فرض را برای قطعه انتخاب کنید — دوبار کلیک روی نقطه در 2D/3D برای جابجایی</span>
+                                </div>
+                                <div id="apStatus" class="hint" style="margin-top:4px;font-size:11px;color:var(--text-3)"></div>
+                                <div id="apEditHint" class="hint" style="margin-top:4px;font-size:11px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);padding:6px 8px;border-radius:8px;display:none">💡 نکته: نقطه طلایی را بکشید تا جابجا شود — دوبار کلیک در 2D/3D برای ویرایش دقیق</div>
+                            </label>
+                        </div>
+                        <div id="detailSpecs" class="detail-specs" style="border-top:1px solid var(--border);padding-top:10px;margin-top:8px"></div>
+                        <label class="detail-label" style="display:flex;align-items:center;gap:8px;margin-top:8px;background:var(--surface-2);border:1px solid var(--border);padding:8px 10px;border-radius:10px">
+                            <input type="checkbox" id="detailFaulty" style="width:16px;height:16px;accent-color:#FF5E57">
+                            <span style="font-size:12px;font-weight:700">قطعه معیوب (Faulty) — تست خرابی</span>
+                            <span class="hint" style="font-size:11px;margin-left:auto">اگر معیوب باشد، تست‌ها OL/بدون بیپ خواهند بود</span>
+                        </label>
+                        <label class="detail-label">رنگ اختصاصی قطعه
+                            <div style="display:flex;gap:8px;align-items:center">
+                                <input id="detailColor" type="color" value="#4dd0ff" class="detail-input" style="width:48px;height:36px;padding:2px">
+                                <button id="detailColorClearBtn" class="btn btn-ghost btn-sm">بازنشانی</button>
+                                <span style="font-size:11px;color:var(--text-3)">رنگ نشانگر</span>
+                            </div>
+                        </label>
+                        <div class="detail-model-tune" style="border-top:1px solid var(--border);padding-top:10px;margin-top:8px">
+                            <label class="detail-label">تنظیم دقیق مدل سه‌بعدی — چرخش و ارتفاع
+                                <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+                                    <label style="font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:6px">چرخش X <input id="detailModelRotX" type="range" min="0" max="360" value="0" style="flex:1"><span id="detailModelRotXVal" style="min-width:32px;text-align:left">0°</span></label>
+                                    <label style="font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:6px">چرخش Y <input id="detailModelRotY" type="range" min="0" max="360" value="0" style="flex:1"><span id="detailModelRotYVal" style="min-width:32px;text-align:left">0°</span></label>
+                                    <label style="font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:6px">چرخش Z <input id="detailModelRotZ" type="range" min="0" max="360" value="0" style="flex:1"><span id="detailModelRotZVal" style="min-width:32px;text-align:left">0°</span></label>
+                                    <label style="font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:6px">مقیاس <input id="detailModelScale" type="range" min="0.3" max="3" step="0.1" value="1" style="flex:1"><span id="detailModelScaleVal" style="min-width:36px;text-align:left">1.0×</span></label>
+                                    <label style="font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:6px">ارتفاع از برد <input id="detailModelHeight" type="range" min="-0.5" max="1.5" step="0.05" value="0" style="flex:1"><span id="detailModelHeightVal" style="min-width:36px;text-align:left">0.00</span></label>
+                                    <button id="detailModelResetBtn" class="btn btn-ghost btn-sm">↺ بازنشانی چرخش و ارتفاع</button>
+                                </div>
+                                <span id="detailModelRotHint" style="font-size:11px;color:var(--text-3);display:block;margin-top:6px">چرخش: 0° · مقیاس: 1.0× · ارتفاع: 0.00</span>
+                            </label>
+                        </div>
+                        <div id="editPreviewWrap" class="edit-preview-wrap hidden">
+                            <div class="edit-preview-header">👁 پیش‌نمایش سه‌بعدی زنده</div>
+                            <div class="edit-preview-canvas-wrap">
+                                <canvas id="editPreviewCanvas"></canvas>
+                            </div>
+                            <div class="edit-preview-hint">درگ برای چرخش · اسکرول برای زوم · تغییرات بلادرنگ</div>
+                        </div>
+                        <div class="detail-actions">
+                            <button id="saveDetailBtn" class="btn btn-primary">💾 اعمال</button>
+                            <button id="deleteDetailBtn" class="btn btn-secondary">🗑 حذف</button>
+                        </div>
+                    </div>
+                </div>
+                </aside>
+
+                <div id="editBoardViewport">
+                <div id="editViewToggle" class="edit-view-toggle">
+                    <button id="edit2DBtn" class="mode-btn active" title="نمای 2D برای رسم دقیق">2D</button>
+                    <button id="edit3DBtn" class="mode-btn" title="نمای سه‌بعدی روی برد — جابجایی دقیق قطعه">🧊 3D</button>
+                </div>
+                <div id="editBoardStage">
+                    <img id="editBoardImage" src="" alt="board 2D" draggable="false">
+                    <div id="editRectLayer"></div>
+                    <div id="editPreviewRect" class="preview-rect hidden"></div>
+                </div>
+                <div id="edit3DWrap" class="edit-3d-wrap hidden">
+                    <canvas id="edit3DCanvas"></canvas>
+                    <div class="edit-3d-overlay">
+                        <span>🧊 پیش‌نمایش سه‌بعدی روی برد — دوبار کلیک روی قطعه برای فعال‌سازی</span>
+                        <span id="edit3DHint" class="edit-3d-hint">دوبار کلیک روی قطعه سه‌بعدی → فعال، سپس درگ · اسکرول زوم · راست-درگ چرخش نما</span>
+                    </div>
+                </div>
+                <div id="editSideBadge" class="side-badge front-badge edit-side-badge">روی برد</div>
+                <div id="editHint" class="edit-hint">👆 ابتدا نوع قطعه را از بالا انتخاب کنید</div>
+
+                <div id="zoomControls" class="zoom-controls">
+                    <button id="zoomOutBtn" class="zoom-btn" title="کوچک‌نمایی">−</button>
+                    <span id="zoomLevel" class="zoom-level">100%</span>
+                    <button id="zoomInBtn" class="zoom-btn" title="بزرگ‌نمایی">+</button>
+                    <button id="zoomResetBtn" class="zoom-btn zoom-reset" title="بازنشانی نما">◎</button>
+                </div>
+                <div id="panHint" class="pan-hint">🔍 اسکرول برای زوم • راست-درگ یا Alt+درگ برای جابجایی</div>
+
+                
+
+            </div>
+            </div> <!-- /editWorkspace -->
+
+            <div class="edit-footer">
+                <div class="edit-footer-stats">
+                    <span id="editStatus" class="edit-status">0 ناحیه ثبت شده</span>
+                    <span id="editSideStats" class="edit-status-dim"></span>
+                </div>
+                <div class="edit-footer-actions">
+                    <button id="deleteSelectedBtn" class="btn btn-secondary hidden">🗑 حذف انتخاب‌شده</button>
+                    <button id="clearAllRectsBtn" class="btn btn-ghost">🧹 پاک‌کردن همه نواحی</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3D Model Viewer -->
+    <div id="modelViewerOverlay" class="hidden">
+        <div class="model-viewer-backdrop"></div>
+        <div id="modelViewerPanel" class="model-viewer-panel">
+            <div class="model-viewer-header">
+                <div>
+                    <h3 id="modelViewerTitle">3D Model</h3>
+                    <span id="modelViewerSubtitle" class="model-viewer-subtitle">—</span>
+                </div>
+                <button id="closeModelViewerBtn" class="btn btn-ghost btn-sm">✕</button>
+            </div>
+            <div id="modelViewerWrap" class="model-viewer-wrap">
+                <canvas id="modelViewerCanvas"></canvas>
+                <div id="modelViewerHint" class="model-viewer-hint">درگ برای چرخش · اسکرول زوم · Shift+درگ جابجایی</div>
+                <div id="modelViewerEmpty" class="model-viewer-empty hidden">
+                    <div style="font-size:28px">🧊</div>
+                    <p>مدل سه‌بعدی ثبت نشده</p>
+                    <span>یک .glb آپلود کنید یا از کتابخانه انتخاب کنید</span>
+                    <button id="modelViewerUploadBtn" class="btn btn-primary btn-sm" style="margin-top:10px">📤 Upload .glb</button>
+                    <input type="file" id="modelViewerUploadInput" accept=".glb,.gltf" hidden>
+                </div>
+                <div id="modelViewerLoading" class="model-viewer-loading hidden"><div class="spinner"></div><span>Loading...</span></div>
+            </div>
+            <div class="model-viewer-footer">
+                <span id="modelViewerMeta" style="font-size:11px;color:var(--text-3);flex:1"></span>
+                <button id="modelViewerSidebarBtn" class="btn btn-ghost btn-sm">📋 Details</button>
+                <button id="modelViewerCloseBtn2" class="btn btn-primary btn-sm">بستن</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cable overlay — pulls from multimeter jacks to board attachment points -->
+    <div id="cableOverlayContainer" aria-hidden="true">
+        <svg id="cableOverlay" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+        <div id="cableProbeTip" class="cable-probe-tip hidden"></div>
+        <div id="cableHint" class="cable-hint hidden">بکشید و روی نقطه طلایی رها کنید ✨</div>
+    </div>
+    <div id="toastContainer"></div>
+
+    <div id="viewDetailPopup" class="view-detail-popup hidden">
+        <button id="closeViewDetailBtn" class="view-detail-close">✕</button>
+        <div class="view-detail-icon" id="viewDetailIcon">⬜</div>
+        <h3 id="viewDetailTitle">خازن</h3>
+        <p id="viewDetailSubtitle" class="view-detail-subtitle">—</p>
+        <div id="viewDetailMeta" class="view-detail-meta"></div>
+        <p id="viewDetailDesc" class="view-detail-desc"></p>
+        <div class="view-detail-actions">
+            <button id="viewDetailEditBtn" class="btn btn-ghost">✏️ ویرایش</button>
+            <button id="viewDetailCloseBtn2" class="btn btn-primary">باشه</button>
+        </div>
     </div>
 </div>
 
@@ -77,7 +744,12 @@
 <script>
     window.initialFrontImage = {{ front_image|tojson if front_image else 'null' }};
     window.initialBackImage = {{ back_image|tojson if back_image else 'null' }};
+    window.initialComponents = {{ components|tojson if components is defined else '[]' }};
+    window.initialCables = {{ cables|tojson if cables is defined else '[]' }};
+    window.initialModels = {{ models|tojson if models is defined else '[]' }};
+    window.initialBoards = {{ boards|tojson if boards is defined else '{}' }};
+    window.initialTheme = {{ theme|tojson if theme is defined else '{}' }};
 </script>
-<script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/main.js', v=config.get('VERSION', '12')) }}"></script>
 </body>
 </html>
